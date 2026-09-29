@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#6d47ac">
+  <title>Convite · Caderno de Confidências</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Nunito+Sans:opsz,wght@6..12,400;6..12,700&display=swap">
+  <style>
+    :root { --ink:#201536; --muted:#5f566e; --purple:#6d47ac; --purple-deep:#4b2a8a; --lilac:#ece4ff; --paper:#fffaf1; --sun:#ffda38; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink); font-family: "Nunito Sans", system-ui, sans-serif; display: grid; place-items: center; padding: 24px 16px; }
+    main { width: min(100%, 420px); background: #fff; border-radius: 24px; padding: 32px 24px 28px; box-shadow: 0 4px 0 #e8e0ea, 0 18px 40px rgba(75, 42, 138, .08); text-align: center; position: relative; }
+    .tape { position: absolute; top: -12px; left: 50%; transform: translateX(-50%) rotate(-2deg); background: var(--sun); color: #5c480c; font: 800 13px/1 "Nunito", sans-serif; letter-spacing: .06em; padding: 8px 16px; border-radius: 4px; box-shadow: 0 2px 0 #d9c38a; white-space: nowrap; }
+    .book { width: 72px; height: 72px; margin: 8px auto 12px; border-radius: 50%; background: var(--lilac); display: grid; place-items: center; font-size: 36px; }
+    h1 { font: 900 26px/1.2 "Nunito", sans-serif; margin: 0 0 8px; }
+    p { margin: 0 0 16px; color: var(--muted); line-height: 1.5; }
+    .open { display: block; width: 100%; padding: 16px; border-radius: 16px; background: var(--purple); color: #fff; text-decoration: none; font: 800 18px/1 "Nunito", sans-serif; box-shadow: 0 4px 0 var(--purple-deep); margin: 8px 0 24px; }
+    .open:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--purple-deep); }
+    .code-box { background: var(--lilac); border-radius: 16px; padding: 16px; }
+    .code-box small { display: block; color: var(--muted); font-size: 14px; margin-bottom: 6px; }
+    .code { font: 900 30px/1.2 "Nunito", sans-serif; letter-spacing: .12em; color: var(--purple-deep); user-select: all; }
+    .copy { margin-top: 10px; border: 2px solid var(--purple); background: #fff; color: var(--purple); border-radius: 12px; padding: 10px 16px; font: 800 15px/1 "Nunito", sans-serif; cursor: pointer; }
+    .steps { text-align: left; margin: 20px 0 0; padding-left: 20px; color: var(--muted); line-height: 1.6; font-size: 15px; }
+    .invalid { color: #ba1a1a; font-weight: 700; }
+    :focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="tape">★ CONVITE ★</span>
+    <div class="book" aria-hidden="true">📖</div>
+    <h1>Você recebeu um convite!</h1>
+    <p>Alguém quer que você responda um <b>Caderno de Confidências</b>. O convite vale por 24 horas.</p>
+    <div id="valid">
+      <a class="open" id="open" href="#">Abrir o convite no app</a>
+      <div class="code-box">
+        <small>Código do convite</small>
+        <div class="code" id="code">—</div>
+        <button class="copy" id="copy" type="button">Copiar código</button>
+      </div>
+      <ol class="steps">
+        <li>Ainda não tem o app? Instale o <b>Caderno de Confidências</b>.</li>
+        <li>Abra o app e entre com a sua conta.</li>
+        <li>Na Biblioteca, toque em <b>Tenho um código de convite</b> e digite o código acima.</li>
+      </ol>
+    </div>
+    <p class="invalid" id="invalid" hidden>Este link de convite não está completo. Peça um novo para quem te convidou.</p>
+  </main>
+  <script>
+    // Pagina sem dados: so le o codigo do endereco (8 letras e numeros, sem I, O, 0 e 1).
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var code = (params.get('c') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) {
+        document.getElementById('valid').hidden = true;
+        document.getElementById('invalid').hidden = false;
+        return;
+      }
+      var shown = code.slice(0, 4) + '-' + code.slice(4);
+      document.getElementById('code').textContent = shown;
+      // Abre o app pelo endereco proprio dele; sem o app instalado, volta para esta pagina (#instalar).
+      var fallback = location.href.split('#')[0] + '#instalar';
+      document.getElementById('open').href =
+        'intent://convite/' + code + '#Intent;scheme=br.com.cadernodeconfidencias;package=br.com.cadernodeconfidencias;' +
+        'S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
+      var copy = document.getElementById('copy');
+      copy.addEventListener('click', function () {
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(shown).then(function () { copy.textContent = 'Código copiado!'; }, function () {});
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.cadernodeconfidencias",
+      "sha256_cert_fingerprints": [
+        "DE:94:D9:2C:F3:51:07:62:3B:12:E9:1D:A7:0E:07:A3:21:A4:F4:1C:EC:1B:FD:C0:37:54:90:DE:3B:EA:B5:FD"
+      ]
+    }
+  }
+]
