@@ -31,18 +31,18 @@
 </head>
 <body>
   <main>
-    <span class="tape">★ CONVITE ★</span>
-    <div class="book" aria-hidden="true">📖</div>
-    <h1>Você recebeu um convite!</h1>
-    <p>Alguém quer que você responda um <b>Caderno de Confidências</b>. O convite vale por 24 horas.</p>
+    <span class="tape" id="tape">★ CONVITE ★</span>
+    <div class="book" aria-hidden="true" id="icon">📖</div>
+    <h1 id="title">Você recebeu um convite!</h1>
+    <p id="intro">Alguém quer que você responda um <b>Caderno de Confidências</b>. O convite vale por 24 horas.</p>
     <div id="valid">
       <a class="open" id="open" href="#">Abrir o convite no app</a>
       <div class="code-box">
-        <small>Código do convite</small>
+        <small id="code-label">Código do convite</small>
         <div class="code" id="code">—</div>
         <button class="copy" id="copy" type="button">Copiar código</button>
       </div>
-      <ol class="steps">
+      <ol class="steps" id="steps">
         <li>Ainda não tem o app? Instale o <b>Caderno de Confidências</b>.</li>
         <li>Abra o app e entre com a sua conta.</li>
         <li>Na Biblioteca, toque em <b>Tenho um código de convite</b> e digite o código acima.</li>
@@ -52,9 +52,28 @@
   </main>
   <script>
     // Pagina sem dados: so le o codigo do endereco (8 letras e numeros, sem I, O, 0 e 1).
+    // ?c= convite para responder um caderno; ?r= pedido de autorizacao a um responsavel (13 a 16 anos).
     (function () {
       var params = new URLSearchParams(location.search);
-      var code = (params.get('c') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      var guardian = params.has('r');
+      var code = (params.get(guardian ? 'r' : 'c') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (guardian) {
+        document.title = 'Pedido de autorização · Caderno de Confidências';
+        document.getElementById('tape').textContent = '★ AUTORIZAÇÃO ★';
+        document.getElementById('icon').textContent = '🤝';
+        document.getElementById('title').textContent = 'Pedido de autorização';
+        document.getElementById('intro').innerHTML =
+          'Um adolescente que você acompanha pediu a sua autorização para usar o <b>Caderno de Confidências</b>. ' +
+          'Só um adulto responsável (18 anos ou mais) pode autorizar. O pedido vale por 7 dias.';
+        document.getElementById('open').textContent = 'Abrir o pedido no app';
+        document.getElementById('code-label').textContent = 'Código do pedido';
+        document.getElementById('steps').innerHTML =
+          '<li>Ainda não tem o app? Instale o <b>Caderno de Confidências</b>.</li>' +
+          '<li>Entre com a <b>sua</b> conta de adulto (não com a conta do adolescente).</li>' +
+          '<li>Toque de novo neste link: o pedido abre no app para você ver os termos e autorizar.</li>';
+        document.getElementById('invalid').textContent =
+          'Este link de autorização não está completo. Peça um novo para quem enviou.';
+      }
       if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) {
         document.getElementById('valid').hidden = true;
         document.getElementById('invalid').hidden = false;
@@ -65,7 +84,8 @@
       // Abre o app pelo endereco proprio dele; sem o app instalado, volta para esta pagina (#instalar).
       var fallback = location.href.split('#')[0] + '#instalar';
       document.getElementById('open').href =
-        'intent://convite/' + code + '#Intent;scheme=br.com.cadernodeconfidencias;package=br.com.cadernodeconfidencias;' +
+        'intent://convite/' + code + (guardian ? '?r=' + code : '') +
+        '#Intent;scheme=br.com.cadernodeconfidencias;package=br.com.cadernodeconfidencias;' +
         'S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
       var copy = document.getElementById('copy');
       copy.addEventListener('click', function () {
