@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#6d47ac">
+  <title>Caderno de Confidências</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Nunito+Sans:opsz,wght@6..12,400;6..12,700&display=swap">
+  <style>
+    :root { --ink:#201536; --muted:#5f566e; --purple:#6d47ac; --purple-deep:#4b2a8a; --lilac:#ece4ff; --paper:#fffaf1; --sun:#ffda38; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink); font-family: "Nunito Sans", system-ui, sans-serif; display: grid; place-items: center; padding: 24px 16px; }
+    main { width: min(100%, 420px); background: #fff; border-radius: 24px; padding: 32px 24px 28px; box-shadow: 0 4px 0 #e8e0ea, 0 18px 40px rgba(75, 42, 138, .08); text-align: center; position: relative; }
+    .tape { position: absolute; top: -12px; left: 50%; transform: translateX(-50%) rotate(-2deg); background: var(--sun); color: #5c480c; font: 800 13px/1 "Nunito", sans-serif; letter-spacing: .06em; padding: 8px 16px; border-radius: 4px; box-shadow: 0 2px 0 #d9c38a; white-space: nowrap; }
+    .tape.warn { background: #ffe3dc; color: #a8402a; box-shadow: 0 2px 0 #f6c4b6; }
+    .icon { width: 72px; height: 72px; margin: 8px auto 12px; border-radius: 50%; background: var(--lilac); display: grid; place-items: center; font-size: 36px; }
+    .icon.warn { background: #ffe3dc; }
+    h1 { font: 900 26px/1.2 "Nunito", sans-serif; margin: 0 0 8px; }
+    p { margin: 0 0 16px; color: var(--muted); line-height: 1.5; }
+    .open { display: block; width: 100%; padding: 16px; border-radius: 16px; background: var(--purple); color: #fff; text-decoration: none; font: 800 18px/1 "Nunito", sans-serif; box-shadow: 0 4px 0 var(--purple-deep); margin: 8px 0 18px; }
+    .open:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--purple-deep); }
+    .box { background: var(--lilac); border-radius: 16px; padding: 14px 16px; text-align: left; line-height: 1.5; color: #3e3650; font-size: 15px; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="tape" id="tape">★ TUDO CERTO ★</span>
+    <div class="icon" id="icon" aria-hidden="true">💌</div>
+    <h1 id="title">E-mail confirmado!</h1>
+    <p id="intro">Sua conta no <b>Caderno de Confidências</b> está pronta.</p>
+    <a class="open" id="open" href="#" hidden>Abrir o app</a>
+    <div class="box" id="box">📱 Agora é com o celular: abra o app <b>Caderno de Confidências</b> e entre com seu e-mail e senha.</div>
+  </main>
+  <script>
+    // Volta dos links dos e-mails do Supabase (DP-029, EP09). Sem dados: so le do endereco o codigo
+    // de uso unico (que so o app que pediu consegue trocar pela sessao, PKCE) e o erro, se houver.
+    // ?tipo=nova-senha: link de "Esqueci a senha". Nada e enviado para lugar nenhum.
+    (function () {
+      var query = new URLSearchParams(location.search);
+      var hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+      function param(name) { return query.get(name) || hash.get(name); }
+      var recovery = query.get('tipo') === 'nova-senha';
+      var code = (param('code') || '').replace(/[^A-Za-z0-9-]/g, '');
+      var failed = param('error') || param('error_code');
+      var android = /Android/i.test(navigator.userAgent);
+      var $ = function (id) { return document.getElementById(id); };
+      function show(tape, icon, title, intro, box, warn) {
+        $('tape').textContent = tape;
+        $('icon').textContent = icon;
+        $('title').textContent = title;
+        $('intro').innerHTML = intro;
+        $('box').innerHTML = box;
+        $('tape').classList.toggle('warn', !!warn);
+        $('icon').classList.toggle('warn', !!warn);
+      }
+
+      // M3: link vencido ou ja usado.
+      if (failed) {
+        show('★ OPA ★', '⏳', 'Este link venceu',
+          'Os links dos e-mails valem por pouco tempo e só funcionam uma vez.',
+          'No app, toque em <b>Reenviar e-mail</b> (cadastro) ou <b>Esqueci a senha</b> (nova senha) para receber um link novo.',
+          true);
+        return;
+      }
+
+      // M4: nova senha fora do celular (a troca precisa do app que pediu).
+      if (recovery && !android) {
+        show('★ NOVA SENHA ★', '🔑', 'Abra no celular',
+          'A nova senha é criada dentro do app, no celular onde você pediu.',
+          '📱 Abra este mesmo e-mail <b>no celular</b> e toque no link de novo.');
+        return;
+      }
+
+      // Sem codigo no endereco: nao ha o que confirmar aqui.
+      if (!code) {
+        show('★ CADERNO ★', '📖', 'Caderno de Confidências',
+          'Abra o app no celular para continuar.',
+          '📱 Recebeu um e-mail do app? Toque no link dele pelo celular.');
+        return;
+      }
+
+      // M2: cadastro confirmado no computador (o e-mail ja fica confirmado ao abrir o link).
+      if (!android) return;
+
+      // M1: celular Android. Leva o codigo para o app (a nova senha abre a tela Nova senha).
+      var path = recovery ? 'auth/nova-senha' : 'auth';
+      var fallback = location.href.split('#')[0] + '#sem-app';
+      var link = 'intent://' + path + '?code=' + encodeURIComponent(code) +
+        '#Intent;scheme=br.com.cadernodeconfidencias;package=br.com.cadernodeconfidencias;' +
+        'S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
+      if (recovery) {
+        show('★ NOVA SENHA ★', '🔑', 'Criar nova senha',
+          'Toque no botão para criar a nova senha no app <b>Caderno de Confidências</b>.',
+          'Se o app não abrir, abra este mesmo e-mail no celular onde você pediu a nova senha.');
+        $('open').textContent = 'Criar nova senha no app';
+      } else {
+        $('box').innerHTML = 'Se o app não abrir sozinho, abra o <b>Caderno de Confidências</b> no celular e entre com seu e-mail e senha.';
+      }
+      $('open').href = link;
+      $('open').hidden = false;
+      // Tenta abrir sozinho; se o navegador nao deixar, fica o botao.
+      if (location.hash !== '#sem-app') location.href = link;
+    })();
+  </script>
+</body>
+</html>
