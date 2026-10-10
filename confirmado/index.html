@@ -37,17 +37,24 @@
     <div class="box" id="box">📱 Agora é com o celular: abra o app <b>Caderno de Confidências</b> e entre com seu e-mail e senha.</div>
   </main>
   <script>
-    // Volta dos links dos e-mails do Supabase (DP-029, EP09). Sem dados: so le do endereco o codigo
-    // de uso unico (que so o app que pediu consegue trocar pela sessao, PKCE) e o erro, se houver.
-    // ?tipo=nova-senha: link de "Esqueci a senha". Nada e enviado para lugar nenhum.
+    // Volta dos links dos e-mails do Supabase (DP-029, EP09). Sem dados guardados: so le do endereco o
+    // codigo de uso unico e o erro, se houver.
+    // Links novos (10/10/2026): ?token_hash=...&type=email|recovery. O e-mail chega aqui SEM gastar o
+    // link; no celular, o app troca o codigo pela sessao; no computador, a confirmacao de cadastro e
+    // feita aqui mesmo e o link de nova senha continua valendo para o celular.
+    // Links antigos: ?code=... (o Supabase ja gastou o link) e ?tipo=nova-senha.
     (function () {
+      var API = 'https://ciqbcwfmffmmhdbrnudl.supabase.co/auth/v1';
+      var KEY = 'sb_publishable_QF24pL_2uSVn_D66Wu_dJQ_z57D3LvZ'; // chave publica do app (a mesma do APK)
       var query = new URLSearchParams(location.search);
       var hash = new URLSearchParams(location.hash.replace(/^#/, ''));
       function param(name) { return query.get(name) || hash.get(name); }
-      var recovery = query.get('tipo') === 'nova-senha';
+      var tokenHash = (query.get('token_hash') || '').replace(/[^A-Za-z0-9_-]/g, '');
+      var recovery = query.get('tipo') === 'nova-senha' || query.get('type') === 'recovery';
       var code = (param('code') || '').replace(/[^A-Za-z0-9-]/g, '');
       var failed = param('error') || param('error_code');
       var android = /Android/i.test(navigator.userAgent);
+      var noApp = location.hash === '#sem-app';
       var $ = function (id) { return document.getElementById(id); };
       function show(tape, icon, title, intro, box, warn) {
         $('tape').textContent = tape;
@@ -55,56 +62,111 @@
         $('title').textContent = title;
         $('intro').innerHTML = intro;
         $('box').innerHTML = box;
+        $('box').hidden = !box;
         $('tape').classList.toggle('warn', !!warn);
         $('icon').classList.toggle('warn', !!warn);
       }
-
-      // M3: link vencido ou ja usado.
-      if (failed) {
+      function expired() {
+        $('open').hidden = true;
         show('★ OPA ★', '⏳', 'Este link venceu',
           'Os links dos e-mails valem por pouco tempo e só funcionam uma vez.',
           'No app, toque em <b>Reenviar e-mail</b> (cadastro) ou <b>Esqueci a senha</b> (nova senha) para receber um link novo.',
           true);
+      }
+      function confirmed() {
+        show('★ TUDO CERTO ★', '💌', 'E-mail confirmado!',
+          'Sua conta no <b>Caderno de Confidências</b> está pronta.',
+          '📱 Agora é com o celular: abra o app <b>Caderno de Confidências</b> e entre com seu e-mail e senha.');
+      }
+      function appLink(path, params, withFallback) {
+        var fallback = location.href.split('#')[0] + '#sem-app';
+        return 'intent://' + path + '?' + params +
+          '#Intent;scheme=br.com.cadernodeconfidencias;package=br.com.cadernodeconfidencias;' +
+          (withFallback ? 'S.browser_fallback_url=' + encodeURIComponent(fallback) + ';' : '') + 'end';
+      }
+      function openApp(path, params, label) {
+        var link = appLink(path, params, true);
+        if (label) $('open').textContent = label;
+        $('open').href = link;
+        $('open').hidden = false;
+        // Tenta abrir sozinho; se o navegador nao deixar, fica o botao.
+        location.href = link;
+      }
+
+      // M3: link vencido ou ja usado.
+      if (failed) { expired(); return; }
+
+      if (tokenHash) {
+        if (recovery) {
+          // M4: fora do celular (ou sem o app) o link NAO e usado: continua valendo para o celular.
+          if (!android || noApp) {
+            show('★ NOVA SENHA ★', '🔑', 'Abra no celular',
+              'A nova senha é criada dentro do app, no celular onde você pediu.',
+              '📱 Abra este mesmo e-mail <b>no celular</b> e toque no link de novo.');
+            return;
+          }
+          show('★ NOVA SENHA ★', '🔑', 'Criar nova senha',
+            'Toque no botão para criar a nova senha no app <b>Caderno de Confidências</b>.',
+            'Se o app não abrir, abra este mesmo e-mail no celular onde você pediu a nova senha.');
+          openApp('auth/nova-senha', 'token_hash=' + encodeURIComponent(tokenHash) + '&type=recovery', 'Criar nova senha no app');
+          return;
+        }
+        // M1: celular com o app. O app confirma o e-mail e ja entra na conta.
+        if (android && !noApp) {
+          $('box').innerHTML = 'Se o app não abrir sozinho, toque no botão.';
+          openApp('auth', 'token_hash=' + encodeURIComponent(tokenHash) + '&type=email', 'Abrir o app');
+          return;
+        }
+        // M2: computador (ou celular sem o app). A confirmacao e feita aqui; a sessao aberta
+        // pela confirmacao e encerrada em seguida (nada fica guardado no navegador).
+        show('★ UM INSTANTE ★', '💌', 'Confirmando seu e-mail…', 'Só um momento.', '');
+        fetch(API + '/verify', {
+          method: 'POST',
+          headers: { apikey: KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'email', token_hash: tokenHash })
+        }).then(function (r) {
+          if (!r.ok) throw new Error('verify ' + r.status);
+          return r.json();
+        }).then(function (session) {
+          confirmed();
+          if (session && session.access_token) {
+            fetch(API + '/logout', { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + session.access_token } })
+              .catch(function () {});
+          }
+        }).catch(expired);
         return;
       }
 
-      // M4: nova senha fora do celular (a troca precisa do app que pediu).
+      // Links antigos (?code=...): o Supabase ja usou o link antes de chegar aqui.
       if (recovery && !android) {
         show('★ NOVA SENHA ★', '🔑', 'Abra no celular',
           'A nova senha é criada dentro do app, no celular onde você pediu.',
-          '📱 Abra este mesmo e-mail <b>no celular</b> e toque no link de novo.');
+          '📱 No celular, abra o app, toque em <b>Esqueci a senha</b> e peça um link novo.');
         return;
       }
-
-      // Sem codigo no endereco: nao ha o que confirmar aqui.
       if (!code) {
         show('★ CADERNO ★', '📖', 'Caderno de Confidências',
           'Abra o app no celular para continuar.',
           '📱 Recebeu um e-mail do app? Toque no link dele pelo celular.');
         return;
       }
-
-      // M2: cadastro confirmado no computador (o e-mail ja fica confirmado ao abrir o link).
-      if (!android) return;
-
-      // M1: celular Android. Leva o codigo para o app (a nova senha abre a tela Nova senha).
-      var path = recovery ? 'auth/nova-senha' : 'auth';
-      var fallback = location.href.split('#')[0] + '#sem-app';
-      var link = 'intent://' + path + '?code=' + encodeURIComponent(code) +
-        '#Intent;scheme=br.com.cadernodeconfidencias;package=br.com.cadernodeconfidencias;' +
-        'S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
+      if (!android) return; // cadastro confirmado no computador (texto inicial da pagina)
       if (recovery) {
         show('★ NOVA SENHA ★', '🔑', 'Criar nova senha',
           'Toque no botão para criar a nova senha no app <b>Caderno de Confidências</b>.',
           'Se o app não abrir, abra este mesmo e-mail no celular onde você pediu a nova senha.');
-        $('open').textContent = 'Criar nova senha no app';
       } else {
         $('box').innerHTML = 'Se o app não abrir sozinho, abra o <b>Caderno de Confidências</b> no celular e entre com seu e-mail e senha.';
       }
-      $('open').href = link;
-      $('open').hidden = false;
-      // Tenta abrir sozinho; se o navegador nao deixar, fica o botao.
-      if (location.hash !== '#sem-app') location.href = link;
+      var path = recovery ? 'auth/nova-senha' : 'auth';
+      var label = recovery ? 'Criar nova senha no app' : null;
+      if (noApp) {
+        if (label) $('open').textContent = label;
+        $('open').href = appLink(path, 'code=' + encodeURIComponent(code), false);
+        $('open').hidden = false;
+        return;
+      }
+      openApp(path, 'code=' + encodeURIComponent(code), label);
     })();
   </script>
 </body>
